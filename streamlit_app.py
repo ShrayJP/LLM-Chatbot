@@ -10,7 +10,7 @@ st.markdown("""
     <style>
     /* Sidebar background */
     [data-testid="stSidebar"] {
-        background-color: #2c2f33;
+        background-color: #6d6c6c;
     }
 
     /* Sidebar text */
