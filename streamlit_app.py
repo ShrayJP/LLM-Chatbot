@@ -3,7 +3,22 @@ import openai
 
 # ✅ Configure Streamlit page
 st.set_page_config(page_title="LLaMA Chatbot", layout="centered")
-st.title("General Purpose LLM Chatbot 🤖")
+st.title("AI-Powered ChatBot 🤖")
+
+# ✅ Inject custom CSS for sidebar shading
+st.markdown("""
+    <style>
+    /* Sidebar background */
+    [data-testid="stSidebar"] {
+        background-color: #2c2f33;
+    }
+
+    /* Sidebar text */
+    [data-testid="stSidebar"] * {
+        color: #ffffff;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # ✅ Set OpenRouter API credentials
 openai.api_key = st.secrets["OPENROUTER_API_KEY"]
