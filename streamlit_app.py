@@ -1,15 +1,13 @@
 import streamlit as st
 import openai
 
-# ✅ Configure page
+# ✅ Configure Streamlit page
 st.set_page_config(page_title="LLaMA Chatbot", layout="centered")
 st.title("General Purpose LLaMA Chatbot 🦙")
 
-# ✅ Create OpenAI client using OpenRouter
-client = openai.OpenAI(
-    api_key=st.secrets["OPENROUTER_API_KEY"],
-    base_url="https://openrouter.ai/api/v1"
-)
+# ✅ Set OpenRouter API credentials
+openai.api_key = st.secrets["OPENROUTER_API_KEY"]
+openai.api_base = "https://openrouter.ai/api/v1"
 
 # ------------------ Model Selector ------------------ #
 available_models = {
@@ -32,7 +30,7 @@ st.session_state["llm_model"] = selected_model_id
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# ✅ Render message history
+# ✅ Render previous messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -47,13 +45,13 @@ def stream_generator(response_stream):
 if prompt := st.chat_input("Talk to LLaMA..."):
     # Save user prompt
     st.session_state.messages.append({"role": "user", "content": prompt})
-    
+
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Query LLM and stream response
+    # Query OpenRouter via OpenAI-compatible API
     with st.chat_message("assistant"):
-        stream = client.chat.completions.create(
+        stream = openai.ChatCompletion.create(
             model=st.session_state["llm_model"],
             messages=[
                 {"role": m["role"], "content": m["content"]}
