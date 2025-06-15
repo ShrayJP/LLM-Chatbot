@@ -3,7 +3,7 @@ import openai
 
 # ✅ Configure Streamlit page
 st.set_page_config(page_title="LLaMA Chatbot", layout="centered")
-st.title("General Purpose LLaMA Chatbot 🦙")
+st.title("General Purpose LLM Chatbot 🤖")
 
 # ✅ Set OpenRouter API credentials
 openai.api_key = st.secrets["OPENROUTER_API_KEY"]
