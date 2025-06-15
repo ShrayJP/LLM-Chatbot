@@ -5,17 +5,32 @@ import openai
 st.set_page_config(page_title="LLaMA Chatbot", layout="centered")
 st.title("AI-Powered ChatBot 🤖")
 
-# ✅ Inject custom CSS for sidebar shading
+# ✅ Inject custom CSS for sidebar and button styling
 st.markdown("""
     <style>
     /* Sidebar background */
     [data-testid="stSidebar"] {
-        background-color: #6d6c6c;
+        background-color: #d3d3d3; /* light gray */
     }
 
     /* Sidebar text */
     [data-testid="stSidebar"] * {
         color: #000000;
+    }
+
+    /* Clear Chat History button styling */
+    div.stButton > button:first-child {
+        background-color: #dc3545;
+        color: white;
+        font-weight: bold;
+        border-radius: 0.5rem;
+        height: 2.5em;
+        width: 100%;
+        border: none;
+        transition: background-color 0.3s ease;
+    }
+    div.stButton > button:first-child:hover {
+        background-color: #c82333;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -34,27 +49,6 @@ available_models = {
 with st.sidebar:
     selected_model_label = st.selectbox("Choose LLM model", list(available_models.keys()))
     selected_model_id = available_models[selected_model_label]
-
-    clear_button = st.markdown("""
-    <style>
-    .custom-button {
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        background-color: #dc3545;
-        color: white;
-        border-radius: 0.5rem;
-        text-align: center;
-        font-weight: bold;
-        cursor: pointer;
-        margin-top: 10px;
-        transition: background-color 0.3s ease;
-    }
-    .custom-button:hover {
-        background-color: #e60000;
-    }
-    </style>
-    <div class="custom-button" onclick="document.querySelector('button[kind=secondary]').click()">🧹 Clear Chat History</div>
-""", unsafe_allow_html=True)
 
     if st.button("🧹 Clear Chat History"):
         st.session_state.messages = []
