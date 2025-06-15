@@ -15,7 +15,7 @@ st.markdown("""
 
     /* Sidebar text */
     [data-testid="stSidebar"] * {
-        color: #ffffff;
+        color: #000000;
     }
     </style>
 """, unsafe_allow_html=True)
