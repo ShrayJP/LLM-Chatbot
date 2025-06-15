@@ -35,6 +35,27 @@ with st.sidebar:
     selected_model_label = st.selectbox("Choose LLM model", list(available_models.keys()))
     selected_model_id = available_models[selected_model_label]
 
+    clear_button = st.markdown("""
+    <style>
+    .custom-button {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background-color: #dc3545;
+        color: white;
+        border-radius: 0.5rem;
+        text-align: center;
+        font-weight: bold;
+        cursor: pointer;
+        margin-top: 10px;
+        transition: background-color 0.3s ease;
+    }
+    .custom-button:hover {
+        background-color: #e60000;
+    }
+    </style>
+    <div class="custom-button" onclick="document.querySelector('button[kind=secondary]').click()">🧹 Clear Chat History</div>
+""", unsafe_allow_html=True)
+
     if st.button("🧹 Clear Chat History"):
         st.session_state.messages = []
 
