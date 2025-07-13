@@ -1,4 +1,7 @@
 streamlit
 openai==0.28
 PyPDF2
-Pillow
+pillow
+faiss-cpu
+numpy
+sentence-transformers
