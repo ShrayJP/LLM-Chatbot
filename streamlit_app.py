@@ -40,11 +40,15 @@ def chunk_text(text, chunk_size=500, overlap=100):
     return chunks
 
 def embed_chunks(chunks):
+    if not chunks:
+        return np.array([]), None
     embed_model = SentenceTransformer("all-MiniLM-L6-v2")
     embeddings = embed_model.encode(chunks)
-    return embeddings, embed_model
+    return np.array(embeddings), embed_model
 
 def build_faiss_index(embeddings):
+    if len(embeddings.shape) != 2:
+        raise ValueError("Embeddings must be a 2D array. Likely cause: empty or invalid text.")
     dim = embeddings.shape[1]
     index = faiss.IndexFlatL2(dim)
     index.add(embeddings)
@@ -76,7 +80,7 @@ def is_vision_model(model_id: str) -> bool:
     return any(tag in model_id.lower() for tag in ["llava", "qwen", "vision"])
 
 # ───────────────────────────────────────────────────────────────
-# 📄 Extract Text from File
+# 📄 Extract Text from File and Build RAG Index
 if uploaded_file:
     if uploaded_file.type == "application/pdf":
         reader = PdfReader(uploaded_file)
@@ -84,14 +88,25 @@ if uploaded_file:
     else:
         text = uploaded_file.read().decode("utf-8")
 
+    if not text.strip():
+        st.error("❌ No text found in the uploaded file. Make sure it's not a scanned image or empty.")
+        st.stop()
+
     st.session_state["uploaded_file_text"] = text
     st.success("✅ Text extracted from uploaded file.")
 
-    # RAG Preparation
     with st.spinner("🔍 Preparing document for retrieval..."):
         chunks = chunk_text(text)
+        if not chunks:
+            st.error("❌ Failed to split the document into chunks. Please upload a longer or more readable file.")
+            st.stop()
+
         embeddings, embed_model = embed_chunks(chunks)
-        index = build_faiss_index(np.array(embeddings))
+        try:
+            index = build_faiss_index(embeddings)
+        except ValueError as e:
+            st.error(f"❌ {str(e)}")
+            st.stop()
 
         st.session_state["rag_chunks"] = chunks
         st.session_state["rag_embed_model"] = embed_model
