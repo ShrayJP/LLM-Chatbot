@@ -4,16 +4,22 @@ from PyPDF2 import PdfReader
 from PIL import Image
 import base64
 import io
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
 
-# Set page title and layout
+# ───────────────────────────────────────────────────────────────
+# 📌 Page Configuration
 st.set_page_config(page_title="LLM Chatbot", layout="centered")
-st.title("AI-Powered Chatbot")
+st.title("AI-Powered Chatbot with RAG")
 
-# Load API key and base URL for OpenRouter
+# ───────────────────────────────────────────────────────────────
+# 🔐 OpenAI API Key (via OpenRouter)
 openai.api_key = st.secrets["OPENROUTER_API_KEY"]
 openai.api_base = "https://openrouter.ai/api/v1"
 
-# List of available models for the user to choose from
+# ───────────────────────────────────────────────────────────────
+# 📚 Available Models
 available_models = {
     "LLaMA 3 (8B)": "meta-llama/llama-3-8b-instruct",
     "Mistral 7B": "mistralai/mistral-7b-instruct",
@@ -21,7 +27,36 @@ available_models = {
     "Qwen": "qwen/qwen2.5-vl-32b-instruct:free"
 }
 
-# Sidebar for model selection, file uploads, and reset option
+# ───────────────────────────────────────────────────────────────
+# 🧠 Text Chunking & RAG Helpers
+def chunk_text(text, chunk_size=500, overlap=100):
+    words = text.split()
+    chunks = []
+    start = 0
+    while start < len(words):
+        end = min(start + chunk_size, len(words))
+        chunks.append(" ".join(words[start:end]))
+        start += chunk_size - overlap
+    return chunks
+
+def embed_chunks(chunks):
+    embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+    embeddings = embed_model.encode(chunks)
+    return embeddings, embed_model
+
+def build_faiss_index(embeddings):
+    dim = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dim)
+    index.add(embeddings)
+    return index
+
+def retrieve_relevant_chunks(query, chunks, index, embed_model, top_k=5):
+    query_embedding = embed_model.encode([query])
+    D, I = index.search(np.array(query_embedding), top_k)
+    return [chunks[i] for i in I[0]]
+
+# ───────────────────────────────────────────────────────────────
+# ⏱ Sidebar Options
 with st.sidebar:
     selected_model_label = st.selectbox("Choose LLM model", list(available_models.keys()))
     selected_model_id = available_models[selected_model_label]
@@ -30,26 +65,40 @@ with st.sidebar:
     uploaded_image = st.file_uploader("🖼️ Upload an image", type=["jpg", "jpeg", "png"])
 
     if st.button("🧹 Clear Chat History"):
-        st.session_state.messages = []  # Clear stored messages
+        st.session_state.messages = []
 
 # Store selected model in session state
 st.session_state["llm_model"] = selected_model_id
 
-# Check if model is vision-capable (e.g., Qwen or LLaVA)
+# ───────────────────────────────────────────────────────────────
+# 🧠 Check if model supports images
 def is_vision_model(model_id: str) -> bool:
     return any(tag in model_id.lower() for tag in ["llava", "qwen", "vision"])
 
-# Extract text from uploaded PDF or TXT
+# ───────────────────────────────────────────────────────────────
+# 📄 Extract Text from File
 if uploaded_file:
     if uploaded_file.type == "application/pdf":
         reader = PdfReader(uploaded_file)
         text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
     else:
         text = uploaded_file.read().decode("utf-8")
-    st.session_state["uploaded_file_text"] = text  # Save extracted text
+
+    st.session_state["uploaded_file_text"] = text
     st.success("✅ Text extracted from uploaded file.")
 
-# Convert uploaded image to base64 string (for models that accept image input)
+    # RAG Preparation
+    with st.spinner("🔍 Preparing document for retrieval..."):
+        chunks = chunk_text(text)
+        embeddings, embed_model = embed_chunks(chunks)
+        index = build_faiss_index(np.array(embeddings))
+
+        st.session_state["rag_chunks"] = chunks
+        st.session_state["rag_embed_model"] = embed_model
+        st.session_state["rag_index"] = index
+
+# ───────────────────────────────────────────────────────────────
+# 🖼️ Image Handling
 if uploaded_image:
     image = Image.open(uploaded_image)
     st.image(image, caption="Uploaded Image", use_column_width=True)
@@ -59,20 +108,20 @@ if uploaded_image:
     img_b64 = base64.b64encode(buffered.getvalue()).decode()
     st.session_state["uploaded_image_base64"] = img_b64
 
-# Initialize chat history if not already present
+# ───────────────────────────────────────────────────────────────
+# 💬 Chat Initialization
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display previous messages (user and assistant)
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Handle user input from chat box
-if prompt := st.chat_input("Talk to LLaMA..."):
+# ───────────────────────────────────────────────────────────────
+# 💬 Handle User Input
+if prompt := st.chat_input("Talk to your chatbot..."):
     prompt = prompt.strip()
     if prompt:
-        # Add user message to history
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -80,16 +129,22 @@ if prompt := st.chat_input("Talk to LLaMA..."):
         with st.chat_message("assistant"):
             base_messages = st.session_state.messages.copy()
 
-            # Inject uploaded file content into prompt as system message
-            file_context = st.session_state.get("uploaded_file_text", "")
-            if file_context:
+            # 🧠 RAG CONTEXT INJECTION
+            retrieved_context = ""
+            if "rag_chunks" in st.session_state:
+                chunks = st.session_state["rag_chunks"]
+                index = st.session_state["rag_index"]
+                embed_model = st.session_state["rag_embed_model"]
+                top_chunks = retrieve_relevant_chunks(prompt, chunks, index, embed_model)
+                retrieved_context = "\n\n".join(top_chunks)
+
                 system_message = {
                     "role": "system",
-                    "content": f"Use the following file content as context for the user's queries:\n{file_context}"
+                    "content": f"Use the following context to answer the query:\n{retrieved_context}"
                 }
                 base_messages = [system_message] + base_messages
 
-            # If model supports vision and image is uploaded, include image
+            # 🖼️ Vision Model Handling
             if is_vision_model(selected_model_id) and "uploaded_image_base64" in st.session_state:
                 stream = openai.ChatCompletion.create(
                     model=selected_model_id,
@@ -107,34 +162,20 @@ if prompt := st.chat_input("Talk to LLaMA..."):
                     }],
                     stream=True,
                 )
-
-                # Stream and display assistant's response
-                full_response = ""
-                response_box = st.empty()
-                for chunk in stream:
-                    delta = chunk.get("choices", [{}])[0].get("delta", {})
-                    if "content" in delta:
-                        full_response += delta["content"]
-                        response_box.markdown(full_response)
-
-                # Save assistant's response
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
-
             else:
-                # Handle normal text-only chat
                 stream = openai.ChatCompletion.create(
                     model=selected_model_id,
                     messages=base_messages,
                     stream=True,
                 )
 
-                full_response = ""
-                response_box = st.empty()
-                for chunk in stream:
-                    delta = chunk.get("choices", [{}])[0].get("delta", {})
-                    if "content" in delta:
-                        full_response += delta["content"]
-                        response_box.markdown(full_response)
+            # 📤 Stream Response
+            full_response = ""
+            response_box = st.empty()
+            for chunk in stream:
+                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                if "content" in delta:
+                    full_response += delta["content"]
+                    response_box.markdown(full_response)
 
-                # Save assistant's response
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
