@@ -2,3 +2,4 @@ streamlit
 openai==0.28
 PyPDF2
 Pillow
+sentence-transformers
